@@ -1,0 +1,4 @@
+Create a directory from root called 'config' and a file within it called 'secrets.ts'
+
+In it:
+export const payerPrivateKey = '<your 32-byte private key here>';
