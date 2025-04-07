@@ -17,7 +17,8 @@ export const config = {
     mintAddress: 'GyzJqvgPYuPnzKew7UZR517wgRR8U16PxHWWgef4fbgs',
     mintAuthority: '3v1MBkq73yuitDZKtje2RkZUuVtg6KA2jNgz8EcbqiS7',
     decimals: 6,
-    memo: 'my_memo'
+    memo: 'my_memo',
+    sendMemo: false
 }
 
 
@@ -77,9 +78,14 @@ const pay = async ({ transferInstructions, feePayer }:
     {transferInstructions: any[]; feePayer: solKit.KeyPairSigner<string>}
 ) => {
     const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
-    const memoInstruction = solMemo.getAddMemoInstruction({
-        memo: config.memo
-    })
+    
+    const instructionsToAppend = [...transferInstructions];
+    if (config.sendMemo) {
+        const memoInstruction = solMemo.getAddMemoInstruction({
+            memo: config.memo
+        })
+        instructionsToAppend.push(memoInstruction);
+    }
 
     // Create transaction I guess
     const transactionMessage = pipe(
@@ -87,7 +93,7 @@ const pay = async ({ transferInstructions, feePayer }:
         (tx) => solKit.setTransactionMessageFeePayerSigner(feePayer, tx),
         (tx) => solKit.setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
         (tx) => solKit.appendTransactionMessageInstructions(
-            [...transferInstructions, memoInstruction],
+            instructionsToAppend,
             tx
         )
     );
