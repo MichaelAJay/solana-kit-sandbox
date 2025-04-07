@@ -29,8 +29,6 @@ const bs58Encoder = solKit.getBase58Encoder();
     // Create fee payer
     const feePayer = await (env === 'dev' ? solKit.createKeyPairSignerFromPrivateKeyBytes(bs58Encoder.encode(feePayerPrivateKey)) : solKit.generateKeyPairSigner());
     // Try to fund
-
-
     const mintAuthority = feePayer;
     const mint = await solKit.generateKeyPairSigner();
     const mintSpace = solToken.getMintSize();

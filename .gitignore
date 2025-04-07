@@ -27,3 +27,5 @@ yarn-error.log*
 .vscode/
 *.swp
 *.swo
+
+private-keys.ts

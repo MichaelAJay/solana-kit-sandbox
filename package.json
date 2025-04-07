@@ -15,9 +15,11 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@solana-program/memo": "^0.7.0",
     "@solana-program/system": "^0.7.0",
     "@solana-program/token": "^0.5.1",
-    "@solana/kit": "^2.1.0"
+    "@solana/kit": "^2.1.0",
+    "crypto-rpc": "git+ssh://git@github.com/bitpay/crypto-rpc.git#8b3fc3594232b7399401fb964c0f07ac257b4cbb"
   },
   "devDependencies": {
     "ts-node": "^10.9.2",

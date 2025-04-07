@@ -15,6 +15,58 @@ const config = {
 };
 const bs58Encoder = solKit.getBase58Encoder();
 
+const sendToken = async () => {
+  try {
+    // Setup
+    const {
+        env,
+        url,
+        feePayerPrivateKey,
+        decimals,
+        mintAddress,
+        destinationAtaAddress,
+        destinationAddress,
+        sourceAtaAddress
+    } = config;
+    const rpc = solKit.createSolanaRpc(`https://${url}`);
+    const rpcSubscriptions = solKit.createSolanaRpcSubscriptions(`wss://${url}`);
+    const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+
+    // Create fee payer
+    const feePayer = await (env === 'dev' ? solKit.createKeyPairSignerFromPrivateKeyBytes(bs58Encoder.encode(feePayerPrivateKey)) : solKit.generateKeyPairSigner());
+    const mint = solKit.address(mintAddress);
+
+    // Specify instructions
+    const transferCheckedInstruction = solToken.getTransferCheckedInstruction({
+        source: solKit.address(sourceAtaAddress),
+        mint,
+        destination: solKit.address(destinationAtaAddress),
+        authority: feePayer,
+        amount: 10,
+        decimals
+    })
+
+    // Create transaction I guess
+    const transactionMessage = pipe(
+        solKit.createTransactionMessage({ version: 0 }),
+        (tx) => solKit.setTransactionMessageFeePayerSigner(feePayer, tx),
+        (tx) => solKit.setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+        (tx) => solKit.appendTransactionMessageInstructions(
+            [transferCheckedInstruction],
+            tx
+        )
+    );
+    
+    const signedTransactionMessage = await solKit.signTransactionMessageWithSigners(transactionMessage);
+    const sendAndConfirmTransaction = solKit.sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions });
+    await sendAndConfirmTransaction(signedTransactionMessage, { commitment: 'confirmed' });
+    const signature = solKit.getSignatureFromTransaction(signedTransactionMessage);
+    console.log('Success!', signature);
+  } catch (error) {
+    console.error('Error minting token:', error);
+  }
+}
+
 // Self-invoking async function to allow top-level await
 (async () => {
   try {

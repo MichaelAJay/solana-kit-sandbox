@@ -1,0 +1,78 @@
+[
+    {
+      "description": "Simple SOL transfer to BP address that meets invoice requirement",
+      "invoiceAmount": 50,
+      "instructions": [
+        { "targetType": "BP", "transferType": "SOL", "amount": 1000000000 }
+      ]
+    },
+    {
+      "description": "Multiple SOL transfers to BP address that collectively meet invoice requirement",
+      "invoiceAmount": 50,
+      "instructions": [
+        { "targetType": "BP", "transferType": "SOL", "amount": 500000000 },
+        { "targetType": "BP", "transferType": "SOL", "amount": 500000000 }
+      ]
+    },
+    {
+      "description": "SOL transfer to BP address that doesn't meet invoice requirement",
+      "invoiceAmount": 50,
+      "instructions": [
+        { "targetType": "BP", "transferType": "SOL", "amount": 100000000 }
+      ]
+    },
+    {
+      "description": "Mixed BP and NON_BP transfers - only BP should be counted (sufficient)",
+      "invoiceAmount": 50,
+      "instructions": [
+        { "targetType": "BP", "transferType": "SOL", "amount": 1000000000 },
+        { "targetType": "NON_BP", "transferType": "SOL", "amount": 2000000000 }
+      ]
+    },
+    {
+      "description": "Mixed BP and NON_BP transfers - only BP should be counted (insufficient)",
+      "invoiceAmount": 50,
+      "instructions": [
+        { "targetType": "BP", "transferType": "SOL", "amount": 100000000 },
+        { "targetType": "NON_BP", "transferType": "SOL", "amount": 2000000000 }
+      ]
+    },
+    {
+      "description": "Single SPL transfer (USDC) to BP address that meets invoice requirement",
+      "invoiceAmount": 50,
+      "instructions": [
+        { "targetType": "BP", "transferType": "SPL", "amount": 50000000 }
+      ]
+    },
+    {
+      "description": "Multiple SPL transfers (USDC) to BP address that collectively meet invoice requirement",
+      "invoiceAmount": 50,
+      "instructions": [
+        { "targetType": "BP", "transferType": "SPL", "amount": 25000000 },
+        { "targetType": "BP", "transferType": "SPL", "amount": 25000000 }
+      ]
+    },
+    {
+      "description": "Mixed SPL and SPL_UNCHECKED transfers to BP address (same token)",
+      "invoiceAmount": 50,
+      "instructions": [
+        { "targetType": "BP", "transferType": "SPL", "amount": 25000000 },
+        { "targetType": "BP", "transferType": "SPL_UNCHECKED", "amount": 25000000 }
+      ]
+    },
+    {
+      "description": "Mixed transfer types (SOL and SPL) to BP address - tests that system handles only one payment type",
+      "invoiceAmount": 50,
+      "instructions": [
+        { "targetType": "BP", "transferType": "SOL", "amount": 1000000000 },
+        { "targetType": "BP", "transferType": "SPL", "amount": 50000000 }
+      ]
+    },
+    {
+      "description": "SPL_UNCHECKED transfer to BP address that meets invoice requirement",
+      "invoiceAmount": 50,
+      "instructions": [
+        { "targetType": "BP", "transferType": "SPL_UNCHECKED", "amount": 50000000 }
+      ]
+    }
+  ]
