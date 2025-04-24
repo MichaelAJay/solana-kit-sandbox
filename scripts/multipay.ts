@@ -4,7 +4,7 @@ import * as solMemo from '@solana-program/memo';
 import * as solSystem from '@solana-program/system';
 import * as solToken from '@solana-program/token';
 import { pipe } from '@solana/functional';
-import { transferInstructions, TransferType, TransferTarget } from './multipay-instructions';
+import { transferInstructions, TransferType, TransferTarget, memo, sendMemo } from './multipay-instructions';
 
 const { payer: payerSecretKey, bp_receiver: bpReceiverSecretKey, non_bp_receiver: nonBpReceiverSecretKey } = secretKeys;
 export const config = {
@@ -17,22 +17,24 @@ export const config = {
     mintAddress: 'GyzJqvgPYuPnzKew7UZR517wgRR8U16PxHWWgef4fbgs',
     mintAuthority: '3v1MBkq73yuitDZKtje2RkZUuVtg6KA2jNgz8EcbqiS7',
     decimals: 6,
-    memo: 'my_memo',
-    sendMemo: false
+    memo,
+    sendMemo
 }
 
-
+const ataAddressExample = solKit.address("J6duDTMFGLehTenoP4Xmbc3FumgjpDdcbmnrVnR49NWe");
 const rpc = solKit.createSolanaRpc(`https://${config.url}`);
 const rpcSubscriptions = solKit.createSolanaRpcSubscriptions(`wss://${config.url}`);
 const bs58Encoder = solKit.getBase58Encoder();
 const bs58Decoder = solKit.getBase58Decoder();
+const myOffMintATA = '655uiPSN45Qwu58SNbh3GJV9YGHgV1NzcJPniBEPnYW2';
 
 const generateTransferSolInstruction = ({ source, destinationAddress, amount }:
     {source: solKit.KeyPairSigner<string>; destinationAddress: solKit.Address<string>; amount: number}
 ) => {
     return solSystem.getTransferSolInstruction({
         amount,
-        destination: destinationAddress,
+        // destination: destinationAddress,
+        destination: ataAddressExample,
         source
       })
 }
@@ -43,9 +45,10 @@ const generateTransferCheckedInstruction = async ({ source, destinationAddress, 
         const mint = solKit.address(config.mintAddress);
         // Derive the atas
         const [sourceAtaAddress] = await solToken.findAssociatedTokenPda({ owner: source.address, tokenProgram: solToken.TOKEN_PROGRAM_ADDRESS, mint });
-        const [destinationAtaAddress] = await solToken.findAssociatedTokenPda({ owner: destinationAddress, tokenProgram: solToken.TOKEN_PROGRAM_ADDRESS, mint });
-        console.log('src', source.address, 'ata', sourceAtaAddress);
-        console.log('destination', destinationAddress, 'ata', destinationAtaAddress);
+        // const [destinationAtaAddress] = await solToken.findAssociatedTokenPda({ owner: destinationAddress, tokenProgram: solToken.TOKEN_PROGRAM_ADDRESS, mint });
+        const destinationAtaAddress = solKit.address(myOffMintATA);
+        // console.log('src', source.address, 'ata', sourceAtaAddress);
+        // console.log('destination', destinationAddress, 'ata', destinationAtaAddress);
 
         return solToken.getTransferCheckedInstruction({
             source: sourceAtaAddress,
@@ -64,27 +67,25 @@ const generateTransferInstruction = async ({ source, destinationAddress, amount 
     // Derive the atas
     const [sourceAtaAddress] = await solToken.findAssociatedTokenPda({ owner: source.address, tokenProgram: solToken.TOKEN_PROGRAM_ADDRESS, mint });
     const [destinationAtaAddress] = await solToken.findAssociatedTokenPda({ owner: destinationAddress, tokenProgram: solToken.TOKEN_PROGRAM_ADDRESS, mint });
-    console.log(sourceAtaAddress, destinationAtaAddress);
+    // console.log(sourceAtaAddress, destinationAtaAddress);
 
     return solToken.getTransferInstruction({
         source: sourceAtaAddress,
+        // source: destinationAtaAddress,
         destination: destinationAtaAddress,
         authority: solKit.address(config.mintAuthority),
+        // authority: destinationAddress,
         amount
     })
 }
 
-const pay = async ({ transferInstructions, feePayer }:
-    {transferInstructions: any[]; feePayer: solKit.KeyPairSigner<string>}
-) => {
-    const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
-    
-    const instructionsToAppend = [...transferInstructions];
-    if (config.sendMemo) {
+const generateTransactionMessage = async ({ transferInstructions, feePayer, latestBlockhash }) => {
+    // const instructionsToAppend = [...transferInstructions];
+    if (config.sendMemo !== false) { // Explicit false check
         const memoInstruction = solMemo.getAddMemoInstruction({
             memo: config.memo
         })
-        instructionsToAppend.push(memoInstruction);
+        transferInstructions.push(memoInstruction);
     }
 
     // Create transaction I guess
@@ -93,19 +94,43 @@ const pay = async ({ transferInstructions, feePayer }:
         (tx) => solKit.setTransactionMessageFeePayerSigner(feePayer, tx),
         (tx) => solKit.setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
         (tx) => solKit.appendTransactionMessageInstructions(
-            instructionsToAppend,
+            transferInstructions,
             tx
         )
     );
-    const signedTransactionMessage = await solKit.signTransactionMessageWithSigners(transactionMessage);
-    console.log('Signed, not sent. Below are public key address - signature pairs');
-    for (const [key, signature] of Object.entries(signedTransactionMessage.signatures)) {
-        if (!signature) continue;
-        console.log(key, bs58Decoder.decode(signature));
-    }
+
+    return transactionMessage;
+}
+
+const signTransactionMessageWithSigners = async ({ transactionMessage }) => {
+    return await solKit.signTransactionMessageWithSigners(transactionMessage);
+}
+
+const sendAndConfirmTransaction = async ({ signedTransactionMessage }) {
+    const sendAndConfirmTransaction =  solKit.sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions });
+    return await sendAndConfirmTransaction(signedTransactionMessage, { commitment: 'confirmed' });
+}
+
+const getBase64EncodedWireTransaction = ({ transactionMessage }) => {
+    const compiledTx = solKit.compileTransaction(transactionMessage);
+    return solKit.getBase64EncodedWireTransaction(compiledTx);
+}
+
+const pay = async ({ transferInstructions, feePayer }:
+    {transferInstructions: any[]; feePayer: solKit.KeyPairSigner<string>}
+) => {
+    const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+    const transactionMessage = await generateTransactionMessage({ transferInstructions, feePayer, latestBlockhash });
+    const signedTransactionMessage = await signTransactionMessageWithSigners({ transactionMessage });
+    // console.log('Signed, not sent. Below are public key address - signature pairs');
+    // for (const [key, signature] of Object.entries(signedTransactionMessage.signatures)) {
+    //     if (!signature) continue;
+    //     console.log(key, bs58Decoder.decode(signature));
+    // }
     const sendAndConfirmTransaction = solKit.sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions });
-    await sendAndConfirmTransaction(signedTransactionMessage, { commitment: 'confirmed' });
     const signature = solKit.getSignatureFromTransaction(signedTransactionMessage);
+    console.log('signed not sent', signature);
+    await sendAndConfirmTransaction(signedTransactionMessage, { commitment: 'confirmed' });
     return signature;
 }
 

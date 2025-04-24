@@ -9,7 +9,8 @@
     "clean": "rm -rf dist",
     "start": "node dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "script": "ts-node"
+    "script": "ts-node",
+    "multipay": "ts-node scripts/multipay.ts"
   },
   "author": "",
   "license": "ISC",
@@ -18,8 +19,10 @@
     "@solana-program/memo": "^0.7.0",
     "@solana-program/system": "^0.7.0",
     "@solana-program/token": "^0.5.1",
+    "@solana-program/token-2022": "^0.4.0",
     "@solana/kit": "^2.1.0",
-    "crypto-rpc": "git+ssh://git@github.com/bitpay/crypto-rpc.git#8b3fc3594232b7399401fb964c0f07ac257b4cbb"
+    "crypto-rpc": "git+ssh://git@github.com/bitpay/crypto-rpc.git#8b3fc3594232b7399401fb964c0f07ac257b4cbb",
+    "gill": "^0.8.2"
   },
   "devDependencies": {
     "ts-node": "^10.9.2",

@@ -1,4 +1,11 @@
-Create a directory from root called 'config' and a file within it called 'secrets.ts'
+const payer: number[] = 
+const bp_receiver: number[] = 
+const non_bp_receiver: number[] = 
 
-In it:
-export const payerPrivateKey = '<your 32-byte private key here>';
+export interface SecretKeys {
+  payer: number[];
+  bp_receiver: number[];
+  non_bp_receiver: number[];
+}
+
+export const secretKeys: SecretKeys = { payer, bp_receiver, non_bp_receiver } 
