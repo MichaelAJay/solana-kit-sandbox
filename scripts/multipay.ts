@@ -4,7 +4,7 @@ import * as solMemo from '@solana-program/memo';
 import * as solSystem from '@solana-program/system';
 import * as solToken from '@solana-program/token';
 import { pipe } from '@solana/functional';
-import { transferInstructions, TransferType, TransferTarget, memo, sendMemo } from './multipay-instructions';
+import { transferInstructions, TransferType, TransferTarget, memo, sendMemo, functionality, Functionality } from './multipay-instructions';
 
 const { payer: payerSecretKey, bp_receiver: bpReceiverSecretKey, non_bp_receiver: nonBpReceiverSecretKey } = secretKeys;
 export const config = {
@@ -33,8 +33,8 @@ const generateTransferSolInstruction = ({ source, destinationAddress, amount }:
 ) => {
     return solSystem.getTransferSolInstruction({
         amount,
-        // destination: destinationAddress,
-        destination: ataAddressExample,
+        destination: destinationAddress,
+        // destination: ataAddressExample,
         source
       })
 }
@@ -79,22 +79,31 @@ const generateTransferInstruction = async ({ source, destinationAddress, amount 
     })
 }
 
-const generateTransactionMessage = async ({ transferInstructions, feePayer, latestBlockhash }) => {
-    // const instructionsToAppend = [...transferInstructions];
+const generateTransactionMessage = async ({ transferInstructions, feePayer, latestBlockhash, setFeePayerSigner }: {transferInstructions: any[]; feePayer: solKit.KeyPairSigner<string>, latestBlockhash: Readonly<{
+    blockhash: solKit.Blockhash;
+    lastValidBlockHeight: bigint;
+}>; setFeePayerSigner: boolean}) => {
+    const instructionsToAppend = [...transferInstructions];
     if (config.sendMemo !== false) { // Explicit false check
         const memoInstruction = solMemo.getAddMemoInstruction({
             memo: config.memo
         })
-        transferInstructions.push(memoInstruction);
+        instructionsToAppend.push(memoInstruction);
+        // Tests behavior w/ multiple memo instructions
+        // const memoInstruction2 = solMemo.getAddMemoInstruction({
+        //     memo: 'Second memo instruction'
+        // })
+        // instructionsToAppend.push(memoInstruction2);
     }
+    // console.log(transferInstructions);
 
     // Create transaction I guess
     const transactionMessage = pipe(
         solKit.createTransactionMessage({ version: 0 }),
-        (tx) => solKit.setTransactionMessageFeePayerSigner(feePayer, tx),
+        setFeePayerSigner ? (tx) => solKit.setTransactionMessageFeePayerSigner(feePayer, tx) : (tx) => solKit.setTransactionMessageFeePayer(feePayer.address, tx),
         (tx) => solKit.setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
         (tx) => solKit.appendTransactionMessageInstructions(
-            transferInstructions,
+            instructionsToAppend,
             tx
         )
     );
@@ -102,25 +111,27 @@ const generateTransactionMessage = async ({ transferInstructions, feePayer, late
     return transactionMessage;
 }
 
-const signTransactionMessageWithSigners = async ({ transactionMessage }) => {
+const signTransactionMessageWithSigners = async ({ transactionMessage }: { transactionMessage: any }) => {
     return await solKit.signTransactionMessageWithSigners(transactionMessage);
 }
 
-const sendAndConfirmTransaction = async ({ signedTransactionMessage }) {
+const sendAndConfirmTransaction = async ({ signedTransactionMessage }: { signedTransactionMessage: any }) => {
     const sendAndConfirmTransaction =  solKit.sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions });
     return await sendAndConfirmTransaction(signedTransactionMessage, { commitment: 'confirmed' });
 }
 
-const getBase64EncodedWireTransaction = ({ transactionMessage }) => {
-    const compiledTx = solKit.compileTransaction(transactionMessage);
+const getBase64EncodedWireTransaction = ({ transactionMessage, compileMessage }: { transactionMessage: any; compileMessage: boolean }) => {
+    const compiledTx = compileMessage ? solKit.compileTransaction(transactionMessage) : transactionMessage;
     return solKit.getBase64EncodedWireTransaction(compiledTx);
 }
 
-const pay = async ({ transferInstructions, feePayer }:
-    {transferInstructions: any[]; feePayer: solKit.KeyPairSigner<string>}
+const pay = async ({ transferInstructions, feePayer, latestBlockhash }:
+    {transferInstructions: any[]; feePayer: solKit.KeyPairSigner<string>, latestBlockhash: Readonly<{
+        blockhash: solKit.Blockhash;
+        lastValidBlockHeight: bigint;
+    }>}
 ) => {
-    const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
-    const transactionMessage = await generateTransactionMessage({ transferInstructions, feePayer, latestBlockhash });
+    const transactionMessage = await generateTransactionMessage({ transferInstructions, feePayer, latestBlockhash, setFeePayerSigner: true });
     const signedTransactionMessage = await signTransactionMessageWithSigners({ transactionMessage });
     // console.log('Signed, not sent. Below are public key address - signature pairs');
     // for (const [key, signature] of Object.entries(signedTransactionMessage.signatures)) {
@@ -136,6 +147,8 @@ const pay = async ({ transferInstructions, feePayer }:
 
 (async () => {
     try {
+        const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+
         const payer = await solKit.createKeyPairSignerFromBytes(Uint8Array.from(config.feePayerSecretKey));
         const bpReceiverKeypair = await solKit.createKeyPairSignerFromBytes(Uint8Array.from(config.bpReceiverSecretKey));
         const nonBpReceiverKeypair = await solKit.createKeyPairSignerFromBytes(Uint8Array.from(config.nonBpReceiverSecretKey));
@@ -153,8 +166,26 @@ const pay = async ({ transferInstructions, feePayer }:
                     return generateTransferInstruction(baseTransferParams)
             }
         }));
-        const signature = await pay({ transferInstructions: transactionTransferInstructions, feePayer: payer });
-        console.log('Transaction successful', signature);
+        // console.log(transactionTransferInstructions);
+
+        const setFeePayerSigner = functionality !== Functionality.GET_UNSIGNED_TRANSACTION_MESSAGE;
+        const transactionMessage = await generateTransactionMessage({ transferInstructions: transactionTransferInstructions, feePayer: payer, latestBlockhash, setFeePayerSigner });
+        switch (functionality) {
+            case Functionality.GET_UNSIGNED_TRANSACTION_MESSAGE:
+                const encodedWireTransaction = getBase64EncodedWireTransaction({ transactionMessage, compileMessage: true });
+                console.log(encodedWireTransaction);
+                break;
+            case Functionality.GET_SIGNED_TRANSACTION_MESSAGE:
+                const signedTransaction = await signTransactionMessageWithSigners({ transactionMessage });
+                const encodedWireSignedTransaction = getBase64EncodedWireTransaction({ transactionMessage: signedTransaction, compileMessage: false });
+                console.log(encodedWireSignedTransaction);
+                break;
+            case Functionality.PAY:
+            default:
+                const signature = await pay({ transferInstructions: transactionTransferInstructions, feePayer: payer, latestBlockhash });
+                console.log('Transaction successful', signature);
+        }
+        console.log('Finished');
     } catch (err) {
         console.error(err);
         process.exit(1);
